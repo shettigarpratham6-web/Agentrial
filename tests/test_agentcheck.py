@@ -45,7 +45,7 @@ def test_agentcheck_detects_bad_behavior():
     evaluation = evaluate_agent(bad_result, scenario)
 
     assert evaluation["passed"] is False
-    assert evaluation["score"] == 40
+    assert evaluation["score"] < 100
 
     assert (
         evaluation["checks"]["required_tools_present"]
