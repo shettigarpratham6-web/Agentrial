@@ -1,12 +1,11 @@
 
-import json
 import sqlite3
-
+import json
 from datetime import datetime, timezone
 
 
 def init_db(db_path="agentcheck.db"):
-    """Create the database and evaluation table if needed."""
+    """Create the evaluation history table if it does not exist."""
 
     with sqlite3.connect(db_path) as connection:
         connection.execute("""
@@ -28,15 +27,21 @@ def save_evaluation(
     trace,
     db_path="agentcheck.db",
 ):
-    """Save one evaluation result in SQLite."""
+    """Save an evaluation, including LLM judge details, to SQLite."""
 
     init_db(db_path)
+
+    checks_json = json.dumps({
+        "checks": evaluation["checks"],
+        "judge": evaluation.get("judge"),
+    })
+
+    trace_json = json.dumps(trace)
 
     created_at = datetime.now(timezone.utc).isoformat()
 
     with sqlite3.connect(db_path) as connection:
-        cursor = connection.execute(
-            """
+        cursor = connection.execute("""
             INSERT INTO evaluation_runs (
                 scenario_name,
                 passed,
@@ -46,22 +51,20 @@ def save_evaluation(
                 created_at
             )
             VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scenario_name,
-                int(evaluation["passed"]),
-                evaluation["score"],
-                json.dumps(evaluation["checks"]),
-                json.dumps(trace),
-                created_at,
-            ),
-        )
+        """, (
+            scenario_name,
+            int(evaluation["passed"]),
+            float(evaluation["score"]),
+            checks_json,
+            trace_json,
+            created_at,
+        ))
 
         return cursor.lastrowid
 
 
 def get_all_results(db_path="agentcheck.db"):
-    """Retrieve saved evaluations, newest first."""
+    """Retrieve saved evaluations, including judge details."""
 
     init_db(db_path)
 
@@ -77,13 +80,25 @@ def get_all_results(db_path="agentcheck.db"):
     results = []
 
     for row in rows:
-        item = dict(row)
+        stored_data = json.loads(row["checks_json"])
 
-        # Convert stored JSON text back into Python dictionaries.
-        item["passed"] = bool(item["passed"])
-        item["checks"] = json.loads(item.pop("checks_json"))
-        item["trace"] = json.loads(item.pop("trace_json"))
+        # Support records saved by the older storage implementation.
+        if "checks" in stored_data:
+            checks = stored_data["checks"]
+            judge = stored_data.get("judge")
+        else:
+            checks = stored_data
+            judge = None
 
-        results.append(item)
+        results.append({
+            "id": row["id"],
+            "scenario_name": row["scenario_name"],
+            "passed": bool(row["passed"]),
+            "score": row["score"],
+            "checks": checks,
+            "judge": judge,
+            "trace": json.loads(row["trace_json"]),
+            "created_at": row["created_at"],
+        })
 
     return results
