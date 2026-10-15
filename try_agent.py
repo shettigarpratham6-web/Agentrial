@@ -4,11 +4,10 @@ from reliability import run_trials
 
 
 def main():
-    # Define the customer's question.
     question = "Where is my order ORD-101?"
 
-    # Define the expected agent behavior.
     scenario = {
+        "question": question,
         "expected_tools": ["get_order"],
         "required_tool_order": ["get_order"],
         "forbidden_tools": [],
@@ -22,8 +21,6 @@ def main():
 
     print(f"\nQuestion: {question}")
 
-    # Run the agent multiple times.
-    # run_trials handles evaluation and SQLite storage.
     results = run_trials(
         agent_function=shopping_agent,
         question=question,
@@ -31,9 +28,9 @@ def main():
         trials=5,
         scenario_name="order_status",
         db_path="agentcheck.db",
+        use_llm_judge=True,
     )
 
-    # Display the overall reliability results.
     summary = results["summary"]
 
     print("\n" + "=" * 50)
@@ -49,7 +46,6 @@ def main():
 
     print("\nAll trial results saved to agentcheck.db")
 
-    # Determine whether the agent meets our reliability target.
     minimum_pass_rate = 90.0
 
     if summary["pass_rate"] >= minimum_pass_rate:
@@ -60,4 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

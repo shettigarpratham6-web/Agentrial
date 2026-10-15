@@ -48,8 +48,12 @@ def run_trials(
     trials=5,
     scenario_name="manual_test",
     db_path="agentcheck.db",
+    use_llm_judge=False,
 ):
-    """Run an agent repeatedly, evaluate it, and save each result."""
+    """
+    Run an agent repeatedly, evaluate its behavior,
+    optionally use an LLM judge, and save each result.
+    """
 
     if trials < 1:
         raise ValueError("trials must be at least 1")
@@ -57,13 +61,19 @@ def run_trials(
     evaluations = []
 
     for trial_number in range(1, trials + 1):
+
         # Execute the agent.
         result = agent_function(question)
 
-        # Evaluate the agent's behavior.
-        evaluation = evaluate_agent(result, scenario)
+        # Evaluate tool usage and answer correctness.
+        # Optionally enable the LLM judge.
+        evaluation = evaluate_agent(
+            result,
+            scenario,
+            use_llm_judge=use_llm_judge,
+        )
 
-        # Save this individual trial.
+        # Save this individual trial to SQLite.
         save_evaluation(
             scenario_name=scenario_name,
             evaluation=evaluation,
@@ -79,6 +89,17 @@ def run_trials(
             f"Trial {trial_number}/{trials}: "
             f"{status} | Score: {evaluation['score']:.1f}/100"
         )
+
+        # Display LLM judge details when enabled.
+        if use_llm_judge and evaluation.get("judge"):
+            judgment = evaluation["judge"]
+
+            print(
+                f"  Judge score: {judgment['score']}/100"
+            )
+            print(
+                f"  Judge reason: {judgment['reason']}"
+            )
 
     # Summarize all trials.
     summary = summarize_trials(evaluations)
